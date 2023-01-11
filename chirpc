@@ -22,23 +22,21 @@ import sys
 import argparse
 import logging
 
-from chirp import logger
+#from chirp import logger
 # from chirp.drivers import *
 from chirp import chirp_common, errors, directory, util
 
 directory.import_drivers()
 
-LOG = logging.getLogger("chirpc")
+#LOG = logging.getLogger("chirpc")
 RADIOS = directory.DRV_TO_RADIO
 
 
 def fail_unsupported():
-    LOG.error("Operation not supported by selected radio")
     sys.exit(1)
 
 
 def fail_missing_mmap():
-    LOG.error("mmap-only operation requires specification of an mmap file")
     sys.exit(1)
 
 
@@ -71,7 +69,6 @@ class DTCSPolarityAction(argparse.Action):
 
 def parse_memory_number(radio, args):
     if len(args) < 1:
-        LOG.error("You must provide an argument specifying the memory number.")
         sys.exit(1)
 
     try:
@@ -82,21 +79,13 @@ def parse_memory_number(radio, args):
     rf = radio.get_features()
     start, end = rf.memory_bounds
     if not (start <= memnum <= end or memnum in rf.valid_special_chans):
-        if len(rf.valid_special_chans) > 0:
-            LOG.error(
-                "memory number must be between %d and %d or one of %s"
-                " (got %s)",
-                start, end, ", ".join(rf.valid_special_chans), memnum)
-        else:
-            LOG.error("memory number must be between %d and %d (got %s)",
-                      start, end, memnum)
         sys.exit(1)
     return memnum
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    logger.add_version_argument(parser)
+    #logger.add_version_argument(parser)
     parser.add_argument("-s", "--serial", dest="serial",
                         default="mmap",
                         help="Serial port (default: mmap)")
@@ -181,7 +170,7 @@ if __name__ == "__main__":
                         action="store_true",
                         default=False,
                         help="Upload memory map to radio")
-    logger.add_arguments(parser)
+    #logger.add_arguments(parser)
     parser.add_argument("args", metavar="arg", nargs='*',
                         help="Some commands require additional arguments")
 
@@ -192,7 +181,7 @@ if __name__ == "__main__":
     options = parser.parse_args()
     args = options.args
 
-    logger.handle_options(options)
+    #logger.handle_options(options)
 
     if options.list_radios:
         print("Supported Radios:\n\t", "\n\t".join(sorted(RADIOS.keys())))
@@ -219,10 +208,8 @@ if __name__ == "__main__":
         else:
             s = options.radio + ".img"
         if not os.path.exists(s):
-            LOG.error("Image file '%s' does not exist" % s)
             sys.exit(1)
     else:
-        LOG.info("opening %s at %i" % (options.serial, rclass.BAUD_RATE))
         if '://' in options.serial:
             s = serial.serial_for_url(options.serial, do_not_open=True)
             s.timeout = 0.5
@@ -241,7 +228,7 @@ if __name__ == "__main__":
         start, end = rf.memory_bounds
         for i in range(start, end + 1):
             mem = radio.get_memory(i)
-            if mem.empty and not logger.is_visible(logging.INFO):
+            if mem.empty:
                 continue
             print(mem)
         sys.exit(0)
@@ -250,7 +237,7 @@ if __name__ == "__main__":
         rf = radio.get_features()
         for i in sorted(rf.valid_special_chans):
             mem = radio.get_memory(i)
-            if mem.empty and not logger.is_visible(logging.INFO):
+            if mem.empty:
                 continue
             print(mem)
         sys.exit(0)
@@ -261,9 +248,8 @@ if __name__ == "__main__":
         try:
             mem = radio.get_memory(src)
         except errors.InvalidMemoryLocation as e:
-            LOG.exception(e)
+            
             sys.exit(1)
-        LOG.info("copying memory %s to %s", src, dst)
         mem.number = dst
         radio.set_memory(mem)
 
@@ -272,10 +258,7 @@ if __name__ == "__main__":
         try:
             mem = radio.get_memory(memnum)
         except errors.InvalidMemoryLocation as e:
-            LOG.exception(e)
             sys.exit(1)
-        if mem.empty:
-            LOG.warn("memory %s is already empty, deleting again", memnum)
         mem.empty = True
         radio.set_memory(mem)
 
@@ -294,8 +277,6 @@ if __name__ == "__main__":
         if options.set_mem_dup != "+" and \
                 options.set_mem_dup != "-" and \
                 options.set_mem_dup != "":
-            LOG.error("Invalid duplex value `%s'" % options.set_mem_dup)
-            LOG.error("Valid values are: '+', '-', ''")
             sys.exit(1)
         else:
             _dup = options.set_mem_dup
@@ -303,9 +284,7 @@ if __name__ == "__main__":
         _dup = None
 
     if options.set_mem_mode:
-        LOG.info("Set mode: %s" % options.set_mem_mode)
         if options.set_mem_mode not in chirp_common.MODES:
-            LOG.error("Invalid mode `%s'")
             sys.exit(1)
         else:
             _mode = options.set_mem_mode
@@ -324,11 +303,9 @@ if __name__ == "__main__":
         try:
             mem = radio.get_memory(memnum)
         except errors.InvalidMemoryLocation as e:
-            LOG.exception(e)
             sys.exit(1)
 
         if mem.empty:
-            LOG.info("creating new memory (#%s)", memnum)
             mem = chirp_common.Memory()
             mem.number = memnum
 
@@ -373,32 +350,26 @@ if __name__ == "__main__":
 
     if options.download_mmap:
         if not issubclass(rclass, chirp_common.CloneModeRadio):
-            LOG.error("%s is not a clone mode radio" % options.radio)
             sys.exit(1)
         if not options.mmap:
-            LOG.error("You must specify the destination file name with --mmap")
             sys.exit(1)
         try:
             radio.sync_in()
             radio.save_mmap(options.mmap)
         except Exception as e:
-            LOG.exception(e)
-        sys.exit(1)
+            sys.exit(1)
 
     if options.upload_mmap:
         if not issubclass(rclass, chirp_common.CloneModeRadio):
-            LOG.error("%s is not a clone mode radio" % options.radio)
             sys.exit(1)
         if not options.mmap:
-            LOG.error("You must specify the source file name with --mmap")
             sys.exit(1)
         try:
             radio.load_mmap(options.mmap)
             radio.sync_out()
             print("Upload successful")
         except Exception as e:
-            LOG.exception(e)
-        sys.exit(1)
+            sys.exit(1)
 
     if options.mmap and isinstance(radio, chirp_common.CloneModeRadio):
         radio.save_mmap(options.mmap)
